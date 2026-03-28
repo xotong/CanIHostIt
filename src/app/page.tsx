@@ -25,7 +25,7 @@ function createModelEntry(gpuId: string = ''): ModelEntry {
     quantization: 'FP8',
     kvCacheType: 'FP8',
     maxContextTokens: 131072,
-    targetConcurrency: 64,
+    agenticMultiplier: 1.6,
   };
 }
 
@@ -35,6 +35,7 @@ export default function Home() {
   const [modelEntries, setModelEntries] = useState<ModelEntry[]>([]);
   const [rackPowerBudgetKw, setRackPowerBudgetKw] = useState(20);
   const [nodePowerKw, setNodePowerKw] = useState(10);
+  const [activeUsers, setActiveUsers] = useState(250);
   const [gpuLoaded, setGpuLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<'models' | 'hardware' | 'settings'>('models');
 
@@ -69,8 +70,8 @@ export default function Home() {
 
   // ─── Calculation ────────────────────────────────────────
   const fleet = useMemo(
-    () => calculateFleetTotals(modelEntries, gpuInventory, rackPowerBudgetKw, nodePowerKw),
-    [modelEntries, gpuInventory, rackPowerBudgetKw, nodePowerKw]
+    () => calculateFleetTotals(modelEntries, gpuInventory, activeUsers, rackPowerBudgetKw, nodePowerKw),
+    [modelEntries, gpuInventory, activeUsers, rackPowerBudgetKw, nodePowerKw]
   );
 
   // Build a results map for inline display
@@ -159,6 +160,7 @@ export default function Home() {
                     onUpdate={updateModel}
                     onRemove={removeModel}
                     index={i}
+                    activeUsers={activeUsers}
                   />
                 ))
               )}
@@ -193,6 +195,25 @@ export default function Home() {
           {activeTab === 'settings' && (
             <div className="glass-card p-5 flex flex-col gap-4">
               <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Infrastructure Settings</h2>
+
+              <div>
+                <Tooltip text="Estimated active developers/users during sustained operation. Each model's agentic multiplier scales this into modeled concurrency.">
+                  <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+                    Active Users
+                  </label>
+                </Tooltip>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    className="glass-input"
+                    value={activeUsers}
+                    onChange={(e) => setActiveUsers(Math.max(1, Number(e.target.value)))}
+                    min={1}
+                    style={{ width: '110px' }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>users</span>
+                </div>
+              </div>
 
               <div>
                 <Tooltip text="Power capacity per datacenter rack in kilowatts. Determines how many GPU nodes fit per rack.">
@@ -243,7 +264,7 @@ export default function Home() {
         </div>
 
         {/* Right Panel — Results */}
-        <ResultsPanel fleet={fleet} rackPowerBudgetKw={rackPowerBudgetKw} nodePowerKw={nodePowerKw} />
+         <ResultsPanel fleet={fleet} rackPowerBudgetKw={rackPowerBudgetKw} nodePowerKw={nodePowerKw} activeUsers={activeUsers} />
       </div>
 
       {/* ─── Footer ────────────────────────────────────── */}

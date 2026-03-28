@@ -84,8 +84,8 @@ export function calculateTpPp(
 // Per-Model Auto-Optimized Calculation
 // ============================================================================
 
-export function calculateForModel(entry: ModelEntry, gpu: GpuSpec): ModelResults {
-  const { model, quantization, kvCacheType, maxContextTokens, targetConcurrency } = entry;
+export function calculateForModel(entry: ModelEntry, gpu: GpuSpec, activeUsers: number): ModelResults {
+  const { model, quantization, kvCacheType, maxContextTokens, agenticMultiplier } = entry;
 
   // ─── Step 1: Calculate weights ───────────────────────────
   const bytesPerParam = getBytesPerParam(quantization);
@@ -113,10 +113,11 @@ export function calculateForModel(entry: ModelEntry, gpu: GpuSpec): ModelResults
   // Allow manual override (for latency tuning)
   const effectiveBatchSize = entry.batchSizeOverride ?? optimalBatchSize;
 
-  // ─── Step 4: Calculate replicas from concurrency ────────
+  // ─── Step 4: Calculate replicas from modeled concurrency ─
   const kvCachePerReplicaGiB = kvCachePerUserGiB * effectiveBatchSize;
   const totalVramPerReplicaGiB = totalWeightsGiB + kvCachePerReplicaGiB;
-  const replicas = Math.max(1, Math.ceil(targetConcurrency / effectiveBatchSize));
+  const modeledConcurrency = Math.max(1, Math.ceil(activeUsers * agenticMultiplier));
+  const replicas = Math.max(1, Math.ceil(modeledConcurrency / effectiveBatchSize));
   const totalGpus = replicas * gpusPerReplica;
   const totalNodes = Math.ceil(totalGpus / gpu.maxGpusPerNode);
 
@@ -130,6 +131,7 @@ export function calculateForModel(entry: ModelEntry, gpu: GpuSpec): ModelResults
     kvCachePerReplicaGiB, totalVramPerReplicaGiB,
     usableVramPerGpuGiB, minGpusRequired,
     tpSize, ppSize, gpusPerReplica,
+    modeledConcurrency,
     replicas, totalGpus, totalNodes,
     totalVramGiB: totalGpus * gpu.vramGiB,
   };
@@ -142,6 +144,7 @@ export function calculateForModel(entry: ModelEntry, gpu: GpuSpec): ModelResults
 export function calculateFleetTotals(
   entries: ModelEntry[],
   gpuInventory: GpuSpec[],
+  activeUsers: number,
   rackPowerBudgetKw: number,
   nodePowerKw: number
 ): FleetTotals {
@@ -151,7 +154,7 @@ export function calculateFleetTotals(
     .map((entry) => {
       const gpu = gpuMap.get(entry.gpuId);
       if (!gpu) return null;
-      return calculateForModel(entry, gpu);
+      return calculateForModel(entry, gpu, activeUsers);
     })
     .filter((r): r is ModelResults => r !== null);
 

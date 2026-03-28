@@ -14,6 +14,7 @@ interface ModelCardProps {
   onUpdate: (entry: ModelEntry) => void;
   onRemove: (id: string) => void;
   index: number;
+  activeUsers: number;
 }
 
 function formatGiB(value: number): string {
@@ -23,7 +24,7 @@ function formatGiB(value: number): string {
   return `${value.toFixed(2)} GiB`;
 }
 
-export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, index }: ModelCardProps) {
+export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, index, activeUsers }: ModelCardProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<HfSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -97,7 +98,7 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
   return (
     <div
       className="glass-card p-5 animate-fade-in-up"
-      style={{ opacity: 0, animationDelay: `${index * 0.05}s`, overflow: isExpanded ? 'visible' : 'hidden' }}
+      style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
@@ -337,17 +338,37 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
             </div>
           </div>
 
-          {/* Target Concurrency */}
+          {/* Agentic Multiplier */}
           <div className="mb-3">
-            <Tooltip text="Total simultaneous requests across all replicas for this model. The system auto-provisions enough replicas based on the optimal batch size.">
+            <Tooltip text="Per-model sustained routing multiplier. Modeled concurrency = active users × multiplier. Use higher values for tiers with more parallel fan-out (for example, Haiku) and lower values for planning-heavy tiers (for example, Opus).">
               <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
-                Target Concurrency
+                Agentic Multiplier
               </label>
             </Tooltip>
             <div className="flex items-center gap-2 mt-1">
-              <input type="range" className="glass-slider flex-1" min={1} max={1000} value={entry.targetConcurrency} onChange={(e) => onUpdate({ ...entry, targetConcurrency: Number(e.target.value) })} />
-              <input type="number" className="glass-input" value={entry.targetConcurrency} onChange={(e) => onUpdate({ ...entry, targetConcurrency: Math.max(1, Number(e.target.value)) })} min={1} max={10000} style={{ width: '64px', flex: 'none', textAlign: 'center' }} />
+              <input
+                type="range"
+                className="glass-slider flex-1"
+                min={1}
+                max={60}
+                step={1}
+                value={Math.round(entry.agenticMultiplier * 10)}
+                onChange={(e) => onUpdate({ ...entry, agenticMultiplier: Number(e.target.value) / 10 })}
+              />
+              <input
+                type="number"
+                className="glass-input"
+                value={entry.agenticMultiplier}
+                onChange={(e) => onUpdate({ ...entry, agenticMultiplier: Math.min(6, Math.max(0.1, Number(e.target.value))) })}
+                min={0.1}
+                max={6}
+                step={0.1}
+                style={{ width: '70px', flex: 'none', textAlign: 'center' }}
+              />
             </div>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+              Modeled concurrency: <span style={{ color: 'var(--color-accent-cyan)' }}>{Math.max(1, Math.ceil(activeUsers * entry.agenticMultiplier))}</span> ({activeUsers} × {entry.agenticMultiplier.toFixed(1)})
+            </p>
           </div>
 
           {/* Advanced Latency Tuning */}
@@ -413,7 +434,7 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
               className="mt-3 pt-3"
               style={{ borderTop: '1px solid oklch(1 0 0 / 0.06)' }}
             >
-              <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="grid grid-cols-5 gap-2 text-center">
                 <div>
                   <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Optimal Batch</p>
                   <p className="text-sm font-bold" style={{ color: 'var(--color-accent-emerald)' }}>
@@ -426,6 +447,10 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
                 <div>
                   <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>TP×PP</p>
                   <p className="text-sm font-bold" style={{ color: 'var(--color-accent-cyan)' }}>{results.tpSize}×{results.ppSize}</p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Modeled Concurrency</p>
+                  <p className="text-sm font-bold" style={{ color: 'var(--color-accent-cyan)' }}>{results.modeledConcurrency}</p>
                 </div>
                 <div>
                   <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Replicas</p>

@@ -7,6 +7,7 @@ interface ResultsPanelProps {
   fleet: FleetTotals;
   rackPowerBudgetKw: number;
   nodePowerKw: number;
+  activeUsers: number;
 }
 
 function formatGiB(value: number): string {
@@ -46,6 +47,10 @@ function ModelBreakdownRow({ r }: { r: ModelResults }) {
         <div>
           <p style={{ color: 'var(--color-text-tertiary)' }}>TP×PP</p>
           <p className="font-medium" style={{ color: 'var(--color-accent-cyan)' }}>{r.tpSize}×{r.ppSize}</p>
+        </div>
+        <div>
+          <p style={{ color: 'var(--color-text-tertiary)' }}>Modeled</p>
+          <p className="font-medium" style={{ color: 'var(--color-accent-cyan)' }}>{r.modeledConcurrency}</p>
         </div>
         <div>
           <p style={{ color: 'var(--color-text-tertiary)' }}>Replicas</p>
@@ -105,6 +110,7 @@ function CalculationTable({ results }: { results: ModelResults[] }) {
             <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>KV Cache/User</th>
             <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>Auto Batch</th>
             <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>Eff. Batch</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>Modeled Concurrency</th>
             <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Replicas</th>
             <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Total GPUs</th>
             <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Total Nodes</th>
@@ -134,6 +140,7 @@ function CalculationTable({ results }: { results: ModelResults[] }) {
               <td style={{ ...TD_STYLE, color: r.effectiveBatchSize !== r.optimalBatchSize ? 'var(--color-accent-amber)' : 'var(--color-accent-emerald)', fontWeight: 600 }}>
                 {r.effectiveBatchSize}{r.effectiveBatchSize !== r.optimalBatchSize ? '*' : ''}
               </td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)', fontWeight: 600 }}>{r.modeledConcurrency}</td>
               {/* Fleet */}
               <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)' }}>{r.replicas}</td>
               <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)', fontWeight: 600 }}>{r.totalGpus}</td>
@@ -150,7 +157,7 @@ function CalculationTable({ results }: { results: ModelResults[] }) {
   );
 }
 
-export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw }: ResultsPanelProps) {
+export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw, activeUsers }: ResultsPanelProps) {
   const hasModels = fleet.modelResults.length > 0;
   const [showTable, setShowTable] = useState(false);
 
@@ -177,7 +184,7 @@ export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw }: 
           Fleet Requirements
         </h2>
         <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
-          {fleet.modelResults.length} model{fleet.modelResults.length !== 1 ? 's' : ''} · {rackPowerBudgetKw} kW/rack · {nodePowerKw} kW/node
+          {fleet.modelResults.length} model{fleet.modelResults.length !== 1 ? 's' : ''} · {activeUsers} active users · {rackPowerBudgetKw} kW/rack · {nodePowerKw} kW/node
         </p>
       </div>
 

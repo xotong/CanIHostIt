@@ -33,7 +33,7 @@ export interface ModelEntry {
   kvCacheType: 'FP8' | 'BF16';  // KV cache precision
   maxContextTokens: number;
   batchSizeOverride?: number;    // manual override, auto-derived if absent
-  targetConcurrency: number;
+  agenticMultiplier: number;     // modeled concurrency = activeUsers * agenticMultiplier
 }
 
 /** Calculation results for a single model entry */
@@ -65,6 +65,7 @@ export interface ModelResults {
   gpusPerReplica: number;
 
   // Fleet sizing for this model
+  modeledConcurrency: number;
   replicas: number;
   totalGpus: number;
   totalNodes: number;
