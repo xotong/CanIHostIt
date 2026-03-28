@@ -326,13 +326,13 @@ export default function Home() {
 
         {/* Right Panel — Results */}
         <ResultsPanel
-           fleet={fleet}
-           rackPowerBudgetKw={rackPowerBudgetKw}
-            nodePowerKw={nodePowerKw}
-            totalDevelopers={totalDevelopers}
-            peakActivePercent={peakActivePercent}
-            safetyBufferPercent={safetyBufferPercent}
-          />
+          fleet={fleet}
+          rackPowerBudgetKw={rackPowerBudgetKw}
+          nodePowerKw={nodePowerKw}
+          totalDevelopers={totalDevelopers}
+          peakActivePercent={peakActivePercent}
+          safetyBufferPercent={safetyBufferPercent}
+        />
       </div>
 
       {/* ─── Footer ────────────────────────────────────── */}
