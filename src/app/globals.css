@@ -406,6 +406,13 @@
     overflow-y: auto;
     padding-right: 4px;
     padding-bottom: 8px;
+    min-height: 0;
+  }
+
+  .model-card-expanded-content {
+    max-height: min(72vh, 860px);
+    overflow-y: auto;
+    padding-right: 6px;
   }
 
   @media (max-width: 1100px) {

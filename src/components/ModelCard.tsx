@@ -17,6 +17,8 @@ interface ModelCardProps {
   peakActiveRate: number;
   totalDevelopers: number;
   safetyBuffer: number;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
 }
 
 function formatGiB(value: number): string {
@@ -26,14 +28,25 @@ function formatGiB(value: number): string {
   return `${value.toFixed(2)} GiB`;
 }
 
-export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, index, peakActiveRate, totalDevelopers, safetyBuffer }: ModelCardProps) {
+export default function ModelCard({
+  entry,
+  gpus,
+  results,
+  onUpdate,
+  onRemove,
+  index,
+  peakActiveRate,
+  totalDevelopers,
+  safetyBuffer,
+  isExpanded,
+  onToggleExpand,
+}: ModelCardProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<HfSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchWarnings, setFetchWarnings] = useState<string[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(index === 0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const assignedGpu = useMemo(() => gpus.find((gpu) => gpu.id === entry.gpuId), [gpus, entry.gpuId]);
@@ -119,7 +132,7 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
         </div>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setIsExpanded((prev) => !prev)}
+            onClick={onToggleExpand}
             className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
             style={{ background: 'oklch(1 0 0 / 0.04)', color: 'var(--color-text-secondary)' }}
             title={isExpanded ? 'Collapse model details' : 'Expand model details'}
@@ -178,7 +191,7 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
       )}
 
       {isExpanded && (
-        <>
+        <div className="model-card-expanded-content">
           {/* HuggingFace Search */}
           <div className="relative mb-3" ref={dropdownRef}>
             <div className="flex items-center gap-2">
@@ -503,7 +516,7 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

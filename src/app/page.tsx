@@ -41,6 +41,7 @@ export default function Home() {
   const [safetyBufferPercent, setSafetyBufferPercent] = useState(10);
   const [gpuLoaded, setGpuLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<'models' | 'hardware' | 'settings'>('models');
+  const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
 
   // ─── Load GPU inventory from localStorage ───────────────
   useEffect(() => {
@@ -64,7 +65,9 @@ export default function Home() {
   // ─── Model CRUD ─────────────────────────────────────────
   const addModel = useCallback(() => {
     const defaultGpuId = gpuInventory.length > 0 ? gpuInventory[0].id : '';
-    setModelEntries((prev) => [...prev, createModelEntry(defaultGpuId)]);
+    const newEntry = createModelEntry(defaultGpuId);
+    setModelEntries((prev) => [...prev, newEntry]);
+    setExpandedModelId(newEntry.id);
     setActiveTab('models');
   }, [gpuInventory]);
 
@@ -91,6 +94,17 @@ export default function Home() {
     fleet.modelResults.forEach((r) => map.set(r.entryId, r));
     return map;
   }, [fleet.modelResults]);
+
+  useEffect(() => {
+    if (modelEntries.length === 0) {
+      setExpandedModelId(null);
+      return;
+    }
+
+    if (!expandedModelId || !modelEntries.some((m) => m.id === expandedModelId)) {
+      setExpandedModelId(modelEntries[0].id);
+    }
+  }, [modelEntries, expandedModelId]);
 
   return (
     <div className="relative z-10">
@@ -129,7 +143,7 @@ export default function Home() {
       {/* ─── Dashboard Grid ────────────────────────────── */}
       <div className="dashboard-grid">
         {/* Left Panel */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 min-h-0">
           {/* Tabs */}
           <div className="toggle-group">
             {(['models', 'hardware', 'settings'] as const).map((tab) => (
@@ -174,6 +188,8 @@ export default function Home() {
                     peakActiveRate={peakActivePercent / 100}
                     totalDevelopers={totalDevelopers}
                     safetyBuffer={1 + (safetyBufferPercent / 100)}
+                    isExpanded={expandedModelId === entry.id}
+                    onToggleExpand={() => setExpandedModelId((prev) => (prev === entry.id ? null : entry.id))}
                   />
                 ))
               )}
