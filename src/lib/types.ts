@@ -41,6 +41,8 @@ export interface ModelResults {
   entryId: string;
   modelName: string;
   gpuName: string;
+  agenticMultiplier: number;
+  peakActiveUsers: number;
 
   // Weight breakdown
   baseWeightsGiB: number;

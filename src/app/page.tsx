@@ -35,7 +35,8 @@ export default function Home() {
   const [modelEntries, setModelEntries] = useState<ModelEntry[]>([]);
   const [rackPowerBudgetKw, setRackPowerBudgetKw] = useState(20);
   const [nodePowerKw, setNodePowerKw] = useState(10);
-  const [activeUsers, setActiveUsers] = useState(250);
+  const [totalDevelopers, setTotalDevelopers] = useState(250);
+  const [peakActivePercent, setPeakActivePercent] = useState(100);
   const [gpuLoaded, setGpuLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<'models' | 'hardware' | 'settings'>('models');
 
@@ -70,8 +71,8 @@ export default function Home() {
 
   // ─── Calculation ────────────────────────────────────────
   const fleet = useMemo(
-    () => calculateFleetTotals(modelEntries, gpuInventory, activeUsers, rackPowerBudgetKw, nodePowerKw),
-    [modelEntries, gpuInventory, activeUsers, rackPowerBudgetKw, nodePowerKw]
+    () => calculateFleetTotals(modelEntries, gpuInventory, totalDevelopers, peakActivePercent / 100, rackPowerBudgetKw, nodePowerKw),
+    [modelEntries, gpuInventory, totalDevelopers, peakActivePercent, rackPowerBudgetKw, nodePowerKw]
   );
 
   // Build a results map for inline display
@@ -160,7 +161,7 @@ export default function Home() {
                     onUpdate={updateModel}
                     onRemove={removeModel}
                     index={i}
-                    activeUsers={activeUsers}
+                    activeUsers={Math.max(1, Math.ceil(totalDevelopers * (peakActivePercent / 100)))}
                   />
                 ))
               )}
@@ -197,21 +198,42 @@ export default function Home() {
               <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Infrastructure Settings</h2>
 
               <div>
-                <Tooltip text="Estimated active developers/users during sustained operation. Each model's agentic multiplier scales this into modeled concurrency.">
+                <Tooltip text="Total number of developers/users in your organization or tenant.">
                   <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
-                    Active Users
+                    Overall Total Developers
                   </label>
                 </Tooltip>
                 <div className="flex items-center gap-2 mt-1">
                   <input
                     type="number"
                     className="glass-input"
-                    value={activeUsers}
-                    onChange={(e) => setActiveUsers(Math.max(1, Number(e.target.value)))}
+                    value={totalDevelopers}
+                    onChange={(e) => setTotalDevelopers(Math.max(1, Number(e.target.value)))}
                     min={1}
                     style={{ width: '110px' }}
                   />
-                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>users</span>
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>developers</span>
+                </div>
+              </div>
+
+              <div>
+                <Tooltip text="Peak active user rate (%). Peak Active Users = Total Developers × Peak Active %.">
+                  <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+                    Overall Peak Active %
+                  </label>
+                </Tooltip>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    className="glass-input"
+                    value={peakActivePercent}
+                    onChange={(e) => setPeakActivePercent(Math.min(100, Math.max(1, Number(e.target.value))))}
+                    min={1}
+                    max={100}
+                    step={1}
+                    style={{ width: '92px' }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>%</span>
                 </div>
               </div>
 
@@ -256,6 +278,9 @@ export default function Home() {
 
               <div className="pt-2" style={{ borderTop: '1px solid oklch(1 0 0 / 0.06)' }}>
                 <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                  Peak Active Users: <strong className="gradient-text">{Math.max(1, Math.ceil(totalDevelopers * (peakActivePercent / 100)))}</strong>
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
                   Nodes per rack: <strong className="gradient-text">{nodePowerKw > 0 ? Math.floor(rackPowerBudgetKw / nodePowerKw) : '∞'}</strong>
                 </p>
               </div>
@@ -264,7 +289,13 @@ export default function Home() {
         </div>
 
         {/* Right Panel — Results */}
-         <ResultsPanel fleet={fleet} rackPowerBudgetKw={rackPowerBudgetKw} nodePowerKw={nodePowerKw} activeUsers={activeUsers} />
+        <ResultsPanel
+           fleet={fleet}
+           rackPowerBudgetKw={rackPowerBudgetKw}
+           nodePowerKw={nodePowerKw}
+           totalDevelopers={totalDevelopers}
+           peakActivePercent={peakActivePercent}
+         />
       </div>
 
       {/* ─── Footer ────────────────────────────────────── */}
