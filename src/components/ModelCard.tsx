@@ -97,7 +97,7 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
   return (
     <div
       className="glass-card p-5 animate-fade-in-up"
-      style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}
+      style={{ opacity: 0, animationDelay: `${index * 0.05}s`, overflow: isExpanded ? 'visible' : 'hidden' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">

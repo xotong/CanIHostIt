@@ -133,7 +133,7 @@ export default function Home() {
 
           {/* Models Tab */}
           {activeTab === 'models' && (
-            <div className="flex flex-col gap-3 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+            <div className="flex flex-col gap-3 models-scroll">
               {modelEntries.length === 0 ? (
                 <div className="glass-card p-6 flex flex-col items-center gap-3">
                   <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>No models configured</p>
