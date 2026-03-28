@@ -387,7 +387,7 @@ export default function ModelCard({
 
           {/* Agentic Multiplier */}
           <div className="mb-3">
-            <Tooltip text="Per-tier parallel request multiplier from the agentic loop. Use lower values for planning-heavy tiers (for example, Opus) and higher values for parallel fan-out tiers (for example, Haiku).">
+            <Tooltip text="Per-tier parallel request multiplier from the agentic loop. Use lower values for reasoning-focused tiers and higher values for parallel fan-out tiers.">
               <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
                 Agentic Multiplier
               </label>
