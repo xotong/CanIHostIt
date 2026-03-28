@@ -25,6 +25,7 @@ function createModelEntry(gpuId: string = ''): ModelEntry {
     quantization: 'FP8',
     kvCacheType: 'FP8',
     maxContextTokens: 131072,
+    tierAllocationPercent: 100,
     agenticMultiplier: 1.6,
   };
 }
@@ -37,6 +38,7 @@ export default function Home() {
   const [nodePowerKw, setNodePowerKw] = useState(10);
   const [totalDevelopers, setTotalDevelopers] = useState(250);
   const [peakActivePercent, setPeakActivePercent] = useState(100);
+  const [safetyBufferPercent, setSafetyBufferPercent] = useState(10);
   const [gpuLoaded, setGpuLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<'models' | 'hardware' | 'settings'>('models');
 
@@ -71,8 +73,16 @@ export default function Home() {
 
   // ─── Calculation ────────────────────────────────────────
   const fleet = useMemo(
-    () => calculateFleetTotals(modelEntries, gpuInventory, totalDevelopers, peakActivePercent / 100, rackPowerBudgetKw, nodePowerKw),
-    [modelEntries, gpuInventory, totalDevelopers, peakActivePercent, rackPowerBudgetKw, nodePowerKw]
+    () => calculateFleetTotals(
+      modelEntries,
+      gpuInventory,
+      totalDevelopers,
+      peakActivePercent / 100,
+      1 + (safetyBufferPercent / 100),
+      rackPowerBudgetKw,
+      nodePowerKw
+    ),
+    [modelEntries, gpuInventory, totalDevelopers, peakActivePercent, safetyBufferPercent, rackPowerBudgetKw, nodePowerKw]
   );
 
   // Build a results map for inline display
@@ -161,7 +171,9 @@ export default function Home() {
                     onUpdate={updateModel}
                     onRemove={removeModel}
                     index={i}
-                    activeUsers={Math.max(1, Math.ceil(totalDevelopers * (peakActivePercent / 100)))}
+                    peakActiveRate={peakActivePercent / 100}
+                    totalDevelopers={totalDevelopers}
+                    safetyBuffer={1 + (safetyBufferPercent / 100)}
                   />
                 ))
               )}
@@ -238,6 +250,27 @@ export default function Home() {
               </div>
 
               <div>
+                <Tooltip text="Safety headroom applied to modeled concurrency to absorb short bursts. Final concurrency is multiplied by (1 + buffer %).">
+                  <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+                    Safety Buffer %
+                  </label>
+                </Tooltip>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    className="glass-input"
+                    value={safetyBufferPercent}
+                    onChange={(e) => setSafetyBufferPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
+                    min={0}
+                    max={100}
+                    step={1}
+                    style={{ width: '92px' }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>%</span>
+                </div>
+              </div>
+
+              <div>
                 <Tooltip text="Power capacity per datacenter rack in kilowatts. Determines how many GPU nodes fit per rack.">
                   <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
                     Rack Power Budget
@@ -281,6 +314,9 @@ export default function Home() {
                   Peak Active Users: <strong className="gradient-text">{Math.max(1, Math.ceil(totalDevelopers * (peakActivePercent / 100)))}</strong>
                 </p>
                 <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                  Safety Buffer Multiplier: <strong className="gradient-text">{(1 + (safetyBufferPercent / 100)).toFixed(2)}x</strong>
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
                   Nodes per rack: <strong className="gradient-text">{nodePowerKw > 0 ? Math.floor(rackPowerBudgetKw / nodePowerKw) : '∞'}</strong>
                 </p>
               </div>
@@ -292,10 +328,11 @@ export default function Home() {
         <ResultsPanel
            fleet={fleet}
            rackPowerBudgetKw={rackPowerBudgetKw}
-           nodePowerKw={nodePowerKw}
-           totalDevelopers={totalDevelopers}
-           peakActivePercent={peakActivePercent}
-         />
+            nodePowerKw={nodePowerKw}
+            totalDevelopers={totalDevelopers}
+            peakActivePercent={peakActivePercent}
+            safetyBufferPercent={safetyBufferPercent}
+          />
       </div>
 
       {/* ─── Footer ────────────────────────────────────── */}

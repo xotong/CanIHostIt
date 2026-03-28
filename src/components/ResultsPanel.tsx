@@ -9,6 +9,7 @@ interface ResultsPanelProps {
   nodePowerKw: number;
   totalDevelopers: number;
   peakActivePercent: number;
+  safetyBufferPercent: number;
 }
 
 function formatGiB(value: number): string {
@@ -131,10 +132,10 @@ function CalculationTable({ results }: { results: ModelResults[] }) {
               <td style={{ ...TD_STYLE, color: 'var(--color-text-primary)', fontWeight: 600, maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.modelName}>{r.modelName}</td>
               <td style={{ ...TD_STYLE, color: 'var(--color-text-tertiary)' }}>{r.gpuName}</td>
               <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)' }}>
-                {r.peakActiveUsers} × {r.agenticMultiplier.toFixed(1)}
+                {r.peakActiveUsers} × {(r.tierAllocationPercent / 100).toFixed(2)} × {r.agenticMultiplier.toFixed(1)} × {r.safetyBuffer.toFixed(2)}
               </td>
               <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)' }}>
-                ceil({r.peakActiveUsers} × {r.agenticMultiplier.toFixed(1)})
+                ceil({r.peakActiveUsers} × {(r.tierAllocationPercent / 100).toFixed(2)} × {r.agenticMultiplier.toFixed(1)} × {r.safetyBuffer.toFixed(2)})
               </td>
               <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)', fontWeight: 600 }}>{r.modeledConcurrency}</td>
               <td style={{ ...TD_STYLE, color: 'var(--color-accent-emerald)' }}>
@@ -167,13 +168,13 @@ function CalculationTable({ results }: { results: ModelResults[] }) {
         </tbody>
       </table>
       <p className="text-xs px-3 py-2" style={{ color: 'var(--color-text-tertiary)', borderTop: '1px solid oklch(1 0 0 / 0.06)' }}>
-        * Concurrency formula: total developers × peak active % × model multiplier. Replica formula: ceil(modeled concurrency ÷ effective batch). Effective batch marked with * if manually overridden.
+        * Concurrency formula: total developers × peak active % × tier allocation % × tier multiplier × safety buffer. Replica formula: ceil(modeled concurrency ÷ effective batch). Effective batch marked with * if manually overridden.
       </p>
     </div>
   );
 }
 
-export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw, totalDevelopers, peakActivePercent }: ResultsPanelProps) {
+export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw, totalDevelopers, peakActivePercent, safetyBufferPercent }: ResultsPanelProps) {
   const hasModels = fleet.modelResults.length > 0;
   const [showTable, setShowTable] = useState(false);
   const peakActiveUsers = Math.max(1, Math.ceil(totalDevelopers * (peakActivePercent / 100)));
@@ -201,7 +202,7 @@ export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw, to
           Fleet Requirements
         </h2>
         <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
-          {fleet.modelResults.length} model{fleet.modelResults.length !== 1 ? 's' : ''} · {totalDevelopers} total devs · {peakActivePercent}% peak active ({peakActiveUsers}) · {rackPowerBudgetKw} kW/rack · {nodePowerKw} kW/node
+          {fleet.modelResults.length} model{fleet.modelResults.length !== 1 ? 's' : ''} · {totalDevelopers} total devs · {peakActivePercent}% peak active ({peakActiveUsers}) · {(1 + safetyBufferPercent / 100).toFixed(2)}x safety buffer · {rackPowerBudgetKw} kW/rack · {nodePowerKw} kW/node
         </p>
       </div>
 

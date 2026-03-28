@@ -37,6 +37,12 @@ High-level flow:
 5. Compute replicas from target concurrency
 6. Aggregate fleet totals (GPUs, nodes, racks, power)
 
+Concurrency target per model tier:
+
+- **Target Concurrency** = (Total Devs × Peak Active % × Tier Allocation % × Tier Multiplier) × Safety Buffer
+- Tier Allocation % is configured per model card.
+- Safety Buffer is configured globally in Settings (for example, 10% = 1.10×).
+
 ## Tech stack
 
 - Next.js 16

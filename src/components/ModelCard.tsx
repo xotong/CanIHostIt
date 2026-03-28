@@ -14,7 +14,9 @@ interface ModelCardProps {
   onUpdate: (entry: ModelEntry) => void;
   onRemove: (id: string) => void;
   index: number;
-  activeUsers: number;
+  peakActiveRate: number;
+  totalDevelopers: number;
+  safetyBuffer: number;
 }
 
 function formatGiB(value: number): string {
@@ -24,7 +26,7 @@ function formatGiB(value: number): string {
   return `${value.toFixed(2)} GiB`;
 }
 
-export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, index, activeUsers }: ModelCardProps) {
+export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, index, peakActiveRate, totalDevelopers, safetyBuffer }: ModelCardProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<HfSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -94,6 +96,8 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
   const ctxIdx = currentCtxIdx >= 0 ? currentCtxIdx : contextSteps.length - 1;
 
   const hasBatchOverride = entry.batchSizeOverride !== undefined;
+  const tierAllocationRate = Math.min(1, Math.max(0, entry.tierAllocationPercent / 100));
+  const modeledConcurrencyPreview = Math.max(1, Math.ceil(totalDevelopers * peakActiveRate * tierAllocationRate * entry.agenticMultiplier * safetyBuffer));
 
   return (
     <div
@@ -338,9 +342,39 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
             </div>
           </div>
 
+          {/* Tier Allocation */}
+          <div className="mb-3">
+            <Tooltip text="Percent of peak-active users routed to this tier at a given moment. Used per tier in concurrency sizing.">
+              <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+                Tier Allocation %
+              </label>
+            </Tooltip>
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                type="range"
+                className="glass-slider flex-1"
+                min={0}
+                max={100}
+                step={1}
+                value={entry.tierAllocationPercent}
+                onChange={(e) => onUpdate({ ...entry, tierAllocationPercent: Number(e.target.value) })}
+              />
+              <input
+                type="number"
+                className="glass-input"
+                value={entry.tierAllocationPercent}
+                onChange={(e) => onUpdate({ ...entry, tierAllocationPercent: Math.min(100, Math.max(0, Number(e.target.value))) })}
+                min={0}
+                max={100}
+                step={1}
+                style={{ width: '70px', flex: 'none', textAlign: 'center' }}
+              />
+            </div>
+          </div>
+
           {/* Agentic Multiplier */}
           <div className="mb-3">
-            <Tooltip text="Per-model sustained routing multiplier. Modeled concurrency = active users × multiplier. Use higher values for tiers with more parallel fan-out (for example, Haiku) and lower values for planning-heavy tiers (for example, Opus).">
+            <Tooltip text="Per-tier parallel request multiplier from the agentic loop. Use lower values for planning-heavy tiers (for example, Opus) and higher values for parallel fan-out tiers (for example, Haiku).">
               <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
                 Agentic Multiplier
               </label>
@@ -367,7 +401,7 @@ export default function ModelCard({ entry, gpus, results, onUpdate, onRemove, in
               />
             </div>
             <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
-              Modeled concurrency: <span style={{ color: 'var(--color-accent-cyan)' }}>{Math.max(1, Math.ceil(activeUsers * entry.agenticMultiplier))}</span> ({activeUsers} × {entry.agenticMultiplier.toFixed(1)})
+              Modeled concurrency: <span style={{ color: 'var(--color-accent-cyan)' }}>{modeledConcurrencyPreview}</span> ({totalDevelopers} × {peakActiveRate.toFixed(2)} × {(entry.tierAllocationPercent / 100).toFixed(2)} × {entry.agenticMultiplier.toFixed(1)} × {safetyBuffer.toFixed(2)})
             </p>
           </div>
 
