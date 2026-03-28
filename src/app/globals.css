@@ -410,6 +410,11 @@
   }
 
   .model-card-expanded-content {
+    max-height: min(72vh, 860px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 6px;
     padding-bottom: 10px;
   }
 

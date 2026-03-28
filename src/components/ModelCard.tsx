@@ -114,7 +114,7 @@ export default function ModelCard({
 
   return (
     <div
-      className="glass-card p-5 animate-fade-in-up"
+      className="glass-card p-5 animate-fade-in-up shrink-0"
       style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}
     >
       {/* Header */}
