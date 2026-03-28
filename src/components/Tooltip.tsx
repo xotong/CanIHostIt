@@ -32,7 +32,7 @@ export default function Tooltip({ text, children }: TooltipProps) {
           background: 'oklch(1 0 0 / 0.06)',
           color: 'var(--color-text-tertiary)',
           border: '1px solid oklch(1 0 0 / 0.08)',
-          focusRingColor: 'oklch(0.78 0.15 195 / 0.3)',
+
         }}
         onMouseEnter={() => setVisible(true)}
         onMouseLeave={() => setVisible(false)}

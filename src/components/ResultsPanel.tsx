@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { FleetTotals, ModelResults } from '@/lib/types';
 
 interface ResultsPanelProps {
@@ -64,8 +64,95 @@ function ModelBreakdownRow({ r }: { r: ModelResults }) {
   );
 }
 
+// ─── Calculation Table (detailed view) ────────────────────────────────────────
+
+const TH_STYLE: React.CSSProperties = {
+  padding: '8px 12px',
+  textAlign: 'left',
+  fontSize: '10px',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.07em',
+  color: 'var(--color-text-tertiary)',
+  whiteSpace: 'nowrap',
+  borderBottom: '1px solid oklch(1 0 0 / 0.08)',
+  background: 'oklch(1 0 0 / 0.02)',
+};
+
+const TD_STYLE: React.CSSProperties = {
+  padding: '8px 12px',
+  fontSize: '12px',
+  color: 'var(--color-text-secondary)',
+  whiteSpace: 'nowrap',
+  borderBottom: '1px solid oklch(1 0 0 / 0.04)',
+};
+
+function CalculationTable({ results }: { results: ModelResults[] }) {
+  return (
+    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid oklch(1 0 0 / 0.08)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+        <thead>
+          <tr>
+            <th style={TH_STYLE}>Model</th>
+            <th style={TH_STYLE}>GPU</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>Base Weights</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>+Overhead (20%)</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>Total Weights</th>
+            <th style={{ ...TH_STYLE, color: 'oklch(0.75 0.15 290)' }}>Usable VRAM/GPU</th>
+            <th style={{ ...TH_STYLE, color: 'oklch(0.75 0.15 290)' }}>TP × PP</th>
+            <th style={{ ...TH_STYLE, color: 'oklch(0.75 0.15 290)' }}>GPUs/Replica</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>VRAM Left for KV</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>KV Cache/User</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>Auto Batch</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>Eff. Batch</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Replicas</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Total GPUs</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Total Nodes</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Total VRAM</th>
+          </tr>
+        </thead>
+        <tbody>
+          {results.map((r) => (
+            <tr key={r.entryId} style={{ transition: 'background 0.1s' }}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'oklch(1 0 0 / 0.02)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <td style={{ ...TD_STYLE, color: 'var(--color-text-primary)', fontWeight: 600, maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.modelName}>{r.modelName}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-text-tertiary)' }}>{r.gpuName}</td>
+              {/* Weights */}
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)' }}>{formatGiB(r.baseWeightsGiB)}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)', opacity: 0.75 }}>+{formatGiB(r.frameworkOverheadGiB)}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)', fontWeight: 600 }}>{formatGiB(r.totalWeightsGiB)}</td>
+              {/* Parallelism */}
+              <td style={{ ...TD_STYLE, color: 'oklch(0.75 0.15 290)' }}>{formatGiB(r.usableVramPerGpuGiB)}</td>
+              <td style={{ ...TD_STYLE, color: 'oklch(0.75 0.15 290)', fontWeight: 600 }}>{r.tpSize}×{r.ppSize}</td>
+              <td style={{ ...TD_STYLE, color: 'oklch(0.75 0.15 290)' }}>{r.gpusPerReplica}</td>
+              {/* KV & Batch */}
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-emerald)' }}>{formatGiB(r.vramLeftForKvGiB)}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-emerald)' }}>{formatGiB(r.kvCachePerUserGiB)}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-emerald)' }}>{r.optimalBatchSize}</td>
+              <td style={{ ...TD_STYLE, color: r.effectiveBatchSize !== r.optimalBatchSize ? 'var(--color-accent-amber)' : 'var(--color-accent-emerald)', fontWeight: 600 }}>
+                {r.effectiveBatchSize}{r.effectiveBatchSize !== r.optimalBatchSize ? '*' : ''}
+              </td>
+              {/* Fleet */}
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)' }}>{r.replicas}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)', fontWeight: 600 }}>{r.totalGpus}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)' }}>{r.totalNodes}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)', fontWeight: 600 }}>{formatGiB(r.totalVramGiB)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-xs px-3 py-2" style={{ color: 'var(--color-text-tertiary)', borderTop: '1px solid oklch(1 0 0 / 0.06)' }}>
+        * Effective batch overridden from auto-optimal. Weights include 20% vLLM framework overhead. Usable VRAM applies GPU utilization cap.
+      </p>
+    </div>
+  );
+}
+
 export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw }: ResultsPanelProps) {
   const hasModels = fleet.modelResults.length > 0;
+  const [showTable, setShowTable] = useState(false);
 
   if (!hasModels) {
     return (
@@ -104,12 +191,49 @@ export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw }: 
 
       {/* Per-Model Breakdown */}
       <div className="glass-card p-5 animate-fade-in-up stagger-5" style={{ opacity: 0 }}>
-        <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-          Per-Model Breakdown
-        </h3>
-        {fleet.modelResults.map((r) => (
-          <ModelBreakdownRow key={r.entryId} r={r} />
-        ))}
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+            Per-Model Breakdown
+          </h3>
+          <button
+            onClick={() => setShowTable((v) => !v)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
+            style={{
+              background: showTable
+                ? 'linear-gradient(135deg, oklch(0.78 0.15 195 / 0.2), oklch(0.65 0.2 290 / 0.2))'
+                : 'oklch(1 0 0 / 0.04)',
+              color: showTable ? 'var(--color-accent-cyan)' : 'var(--color-text-tertiary)',
+              border: showTable
+                ? '1px solid oklch(0.78 0.15 195 / 0.3)'
+                : '1px solid oklch(1 0 0 / 0.06)',
+            }}
+          >
+            {showTable ? (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                </svg>
+                Summary View
+              </>
+            ) : (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/>
+                </svg>
+                Table View
+              </>
+            )}
+          </button>
+        </div>
+
+        {showTable ? (
+          <CalculationTable results={fleet.modelResults} />
+        ) : (
+          fleet.modelResults.map((r) => (
+            <ModelBreakdownRow key={r.entryId} r={r} />
+          ))
+        )}
       </div>
     </div>
   );
