@@ -89,8 +89,8 @@ const TD_STYLE: React.CSSProperties = {
 
 function CalculationTable({ results }: { results: ModelResults[] }) {
   return (
-    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid oklch(1 0 0 / 0.08)' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+    <div style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', borderRadius: '8px', border: '1px solid oklch(1 0 0 / 0.08)' }}>
+      <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
         <thead>
           <tr>
             <th style={TH_STYLE}>Model</th>
@@ -171,7 +171,7 @@ export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw }: 
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 min-w-0">
       <div>
         <h2 className="text-lg font-semibold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
           Fleet Requirements
