@@ -25,7 +25,8 @@ function createModelEntry(gpuId: string = ''): ModelEntry {
     quantization: 'FP8',
     kvCacheType: 'FP8',
     maxContextTokens: 131072,
-    targetConcurrency: 64,
+    tierAllocationPercent: 100,
+    agenticMultiplier: 1.6,
   };
 }
 
@@ -35,8 +36,12 @@ export default function Home() {
   const [modelEntries, setModelEntries] = useState<ModelEntry[]>([]);
   const [rackPowerBudgetKw, setRackPowerBudgetKw] = useState(20);
   const [nodePowerKw, setNodePowerKw] = useState(10);
+  const [totalDevelopers, setTotalDevelopers] = useState(250);
+  const [peakActivePercent, setPeakActivePercent] = useState(100);
+  const [safetyBufferPercent, setSafetyBufferPercent] = useState(10);
   const [gpuLoaded, setGpuLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<'models' | 'hardware' | 'settings'>('models');
+  const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
 
   // ─── Load GPU inventory from localStorage ───────────────
   useEffect(() => {
@@ -60,7 +65,9 @@ export default function Home() {
   // ─── Model CRUD ─────────────────────────────────────────
   const addModel = useCallback(() => {
     const defaultGpuId = gpuInventory.length > 0 ? gpuInventory[0].id : '';
-    setModelEntries((prev) => [...prev, createModelEntry(defaultGpuId)]);
+    const newEntry = createModelEntry(defaultGpuId);
+    setModelEntries((prev) => [...prev, newEntry]);
+    setExpandedModelId(newEntry.id);
     setActiveTab('models');
   }, [gpuInventory]);
 
@@ -69,8 +76,16 @@ export default function Home() {
 
   // ─── Calculation ────────────────────────────────────────
   const fleet = useMemo(
-    () => calculateFleetTotals(modelEntries, gpuInventory, rackPowerBudgetKw, nodePowerKw),
-    [modelEntries, gpuInventory, rackPowerBudgetKw, nodePowerKw]
+    () => calculateFleetTotals(
+      modelEntries,
+      gpuInventory,
+      totalDevelopers,
+      peakActivePercent / 100,
+      1 + (safetyBufferPercent / 100),
+      rackPowerBudgetKw,
+      nodePowerKw
+    ),
+    [modelEntries, gpuInventory, totalDevelopers, peakActivePercent, safetyBufferPercent, rackPowerBudgetKw, nodePowerKw]
   );
 
   // Build a results map for inline display
@@ -79,6 +94,17 @@ export default function Home() {
     fleet.modelResults.forEach((r) => map.set(r.entryId, r));
     return map;
   }, [fleet.modelResults]);
+
+  useEffect(() => {
+    if (modelEntries.length === 0) {
+      setExpandedModelId(null);
+      return;
+    }
+
+    if (!expandedModelId || !modelEntries.some((m) => m.id === expandedModelId)) {
+      setExpandedModelId(modelEntries[0].id);
+    }
+  }, [modelEntries, expandedModelId]);
 
   return (
     <div className="relative z-10">
@@ -117,7 +143,7 @@ export default function Home() {
       {/* ─── Dashboard Grid ────────────────────────────── */}
       <div className="dashboard-grid">
         {/* Left Panel */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 min-h-0">
           {/* Tabs */}
           <div className="toggle-group">
             {(['models', 'hardware', 'settings'] as const).map((tab) => (
@@ -133,7 +159,7 @@ export default function Home() {
 
           {/* Models Tab */}
           {activeTab === 'models' && (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 models-scroll">
               {modelEntries.length === 0 ? (
                 <div className="glass-card p-6 flex flex-col items-center gap-3">
                   <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>No models configured</p>
@@ -159,6 +185,11 @@ export default function Home() {
                     onUpdate={updateModel}
                     onRemove={removeModel}
                     index={i}
+                    peakActiveRate={peakActivePercent / 100}
+                    totalDevelopers={totalDevelopers}
+                    safetyBuffer={1 + (safetyBufferPercent / 100)}
+                    isExpanded={expandedModelId === entry.id}
+                    onToggleExpand={() => setExpandedModelId((prev) => (prev === entry.id ? null : entry.id))}
                   />
                 ))
               )}
@@ -193,6 +224,67 @@ export default function Home() {
           {activeTab === 'settings' && (
             <div className="glass-card p-5 flex flex-col gap-4">
               <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Infrastructure Settings</h2>
+
+              <div>
+                <Tooltip text="Total number of developers/users in your organization or tenant.">
+                  <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+                    Overall Total Developers
+                  </label>
+                </Tooltip>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    className="glass-input"
+                    value={totalDevelopers}
+                    onChange={(e) => setTotalDevelopers(Math.max(1, Number(e.target.value)))}
+                    min={1}
+                    style={{ width: '110px' }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>developers</span>
+                </div>
+              </div>
+
+              <div>
+                <Tooltip text="Peak active user rate (%). Peak Active Users = Total Developers × Peak Active %.">
+                  <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+                    Overall Peak Active %
+                  </label>
+                </Tooltip>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    className="glass-input"
+                    value={peakActivePercent}
+                    onChange={(e) => setPeakActivePercent(Math.min(100, Math.max(1, Number(e.target.value))))}
+                    min={1}
+                    max={100}
+                    step={1}
+                    style={{ width: '92px' }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>%</span>
+                </div>
+              </div>
+
+              <div>
+                <Tooltip text="Safety headroom applied to modeled concurrency to absorb short bursts. Final concurrency is multiplied by (1 + buffer %).">
+                  <label className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+                    Safety Buffer %
+                  </label>
+                </Tooltip>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    className="glass-input"
+                    value={safetyBufferPercent}
+                    onChange={(e) => setSafetyBufferPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
+                    min={0}
+                    max={100}
+                    step={1}
+                    style={{ width: '92px' }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>%</span>
+                </div>
+              </div>
 
               <div>
                 <Tooltip text="Power capacity per datacenter rack in kilowatts. Determines how many GPU nodes fit per rack.">
@@ -235,6 +327,12 @@ export default function Home() {
 
               <div className="pt-2" style={{ borderTop: '1px solid oklch(1 0 0 / 0.06)' }}>
                 <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                  Peak Active Users: <strong className="gradient-text">{Math.max(1, Math.ceil(totalDevelopers * (peakActivePercent / 100)))}</strong>
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                  Safety Buffer Multiplier: <strong className="gradient-text">{(1 + (safetyBufferPercent / 100)).toFixed(2)}x</strong>
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
                   Nodes per rack: <strong className="gradient-text">{nodePowerKw > 0 ? Math.floor(rackPowerBudgetKw / nodePowerKw) : '∞'}</strong>
                 </p>
               </div>
@@ -243,7 +341,14 @@ export default function Home() {
         </div>
 
         {/* Right Panel — Results */}
-        <ResultsPanel fleet={fleet} rackPowerBudgetKw={rackPowerBudgetKw} nodePowerKw={nodePowerKw} />
+        <ResultsPanel
+          fleet={fleet}
+          rackPowerBudgetKw={rackPowerBudgetKw}
+          nodePowerKw={nodePowerKw}
+          totalDevelopers={totalDevelopers}
+          peakActivePercent={peakActivePercent}
+          safetyBufferPercent={safetyBufferPercent}
+        />
       </div>
 
       {/* ─── Footer ────────────────────────────────────── */}

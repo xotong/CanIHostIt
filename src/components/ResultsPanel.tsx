@@ -1,12 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { FleetTotals, ModelResults } from '@/lib/types';
 
 interface ResultsPanelProps {
   fleet: FleetTotals;
   rackPowerBudgetKw: number;
   nodePowerKw: number;
+  totalDevelopers: number;
+  peakActivePercent: number;
+  safetyBufferPercent: number;
 }
 
 function formatGiB(value: number): string {
@@ -48,6 +51,10 @@ function ModelBreakdownRow({ r }: { r: ModelResults }) {
           <p className="font-medium" style={{ color: 'var(--color-accent-cyan)' }}>{r.tpSize}×{r.ppSize}</p>
         </div>
         <div>
+          <p style={{ color: 'var(--color-text-tertiary)' }}>Modeled</p>
+          <p className="font-medium" style={{ color: 'var(--color-accent-cyan)' }}>{r.modeledConcurrency}</p>
+        </div>
+        <div>
           <p style={{ color: 'var(--color-text-tertiary)' }}>Replicas</p>
           <p className="font-medium">{r.replicas}</p>
         </div>
@@ -64,8 +71,113 @@ function ModelBreakdownRow({ r }: { r: ModelResults }) {
   );
 }
 
-export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw }: ResultsPanelProps) {
+// ─── Calculation Table (detailed view) ────────────────────────────────────────
+
+const TH_STYLE: React.CSSProperties = {
+  padding: '8px 12px',
+  textAlign: 'left',
+  fontSize: '10px',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.07em',
+  color: 'var(--color-text-tertiary)',
+  whiteSpace: 'nowrap',
+  borderBottom: '1px solid oklch(1 0 0 / 0.08)',
+  background: 'oklch(1 0 0 / 0.02)',
+};
+
+const TD_STYLE: React.CSSProperties = {
+  padding: '8px 12px',
+  fontSize: '12px',
+  color: 'var(--color-text-secondary)',
+  whiteSpace: 'nowrap',
+  borderBottom: '1px solid oklch(1 0 0 / 0.04)',
+};
+
+function CalculationTable({ results }: { results: ModelResults[] }) {
+  return (
+    <div style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', borderRadius: '8px', border: '1px solid oklch(1 0 0 / 0.08)' }}>
+      <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+        <thead>
+          <tr>
+            <th style={TH_STYLE}>Model</th>
+            <th style={TH_STYLE}>GPU</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>Concurrency Inputs</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>Concurrency Formula</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>Modeled Concurrency</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>Batch Derivation</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>Eff. Batch</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Replica Formula</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Replicas</th>
+            <th style={{ ...TH_STYLE, color: 'oklch(0.75 0.15 290)' }}>TP × PP</th>
+            <th style={{ ...TH_STYLE, color: 'oklch(0.75 0.15 290)' }}>GPUs/Replica</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Total GPUs</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Total Nodes</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-amber)' }}>Total VRAM</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>Base Weights</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>+Overhead (20%)</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-cyan)' }}>Total Weights</th>
+            <th style={{ ...TH_STYLE, color: 'oklch(0.75 0.15 290)' }}>Usable VRAM/GPU</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>VRAM Left for KV</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>KV Cache/User</th>
+            <th style={{ ...TH_STYLE, color: 'var(--color-accent-emerald)' }}>Auto Batch</th>
+          </tr>
+        </thead>
+        <tbody>
+          {results.map((r) => (
+            <tr key={r.entryId} style={{ transition: 'background 0.1s' }}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'oklch(1 0 0 / 0.02)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <td style={{ ...TD_STYLE, color: 'var(--color-text-primary)', fontWeight: 600, maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.modelName}>{r.modelName}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-text-tertiary)' }}>{r.gpuName}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)' }}>
+                {r.peakActiveUsers} × {(r.tierAllocationPercent / 100).toFixed(2)} × {r.agenticMultiplier.toFixed(1)} × {r.safetyBuffer.toFixed(2)}
+              </td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)' }}>
+                ceil({r.peakActiveUsers} × {(r.tierAllocationPercent / 100).toFixed(2)} × {r.agenticMultiplier.toFixed(1)} × {r.safetyBuffer.toFixed(2)})
+              </td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)', fontWeight: 600 }}>{r.modeledConcurrency}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-emerald)' }}>
+                floor({r.vramLeftForKvGiB.toFixed(2)} ÷ {r.kvCachePerUserGiB.toFixed(4)})
+              </td>
+              <td style={{ ...TD_STYLE, color: r.effectiveBatchSize !== r.optimalBatchSize ? 'var(--color-accent-amber)' : 'var(--color-accent-emerald)', fontWeight: 600 }}>
+                {r.effectiveBatchSize}{r.effectiveBatchSize !== r.optimalBatchSize ? '*' : ''}
+              </td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)' }}>
+                ceil({r.modeledConcurrency} ÷ {r.effectiveBatchSize})
+              </td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)', fontWeight: 600 }}>{r.replicas}</td>
+              <td style={{ ...TD_STYLE, color: 'oklch(0.75 0.15 290)', fontWeight: 600 }}>{r.tpSize}×{r.ppSize}</td>
+              <td style={{ ...TD_STYLE, color: 'oklch(0.75 0.15 290)' }}>{r.gpusPerReplica}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)', fontWeight: 600 }}>{r.totalGpus}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)' }}>{r.totalNodes}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-amber)', fontWeight: 600 }}>{formatGiB(r.totalVramGiB)}</td>
+              {/* Weights */}
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)' }}>{formatGiB(r.baseWeightsGiB)}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)', opacity: 0.75 }}>+{formatGiB(r.frameworkOverheadGiB)}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-cyan)', fontWeight: 600 }}>{formatGiB(r.totalWeightsGiB)}</td>
+              {/* Parallelism */}
+              <td style={{ ...TD_STYLE, color: 'oklch(0.75 0.15 290)' }}>{formatGiB(r.usableVramPerGpuGiB)}</td>
+              {/* KV & Batch */}
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-emerald)' }}>{formatGiB(r.vramLeftForKvGiB)}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-emerald)' }}>{formatGiB(r.kvCachePerUserGiB)}</td>
+              <td style={{ ...TD_STYLE, color: 'var(--color-accent-emerald)' }}>{r.optimalBatchSize}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-xs px-3 py-2" style={{ color: 'var(--color-text-tertiary)', borderTop: '1px solid oklch(1 0 0 / 0.06)' }}>
+        * Concurrency formula: total developers × peak active % × tier allocation % × tier multiplier × safety buffer. Replica formula: ceil(modeled concurrency ÷ effective batch). Effective batch marked with * if manually overridden.
+      </p>
+    </div>
+  );
+}
+
+export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw, totalDevelopers, peakActivePercent, safetyBufferPercent }: ResultsPanelProps) {
   const hasModels = fleet.modelResults.length > 0;
+  const [showTable, setShowTable] = useState(false);
+  const peakActiveUsers = Math.max(1, Math.ceil(totalDevelopers * (peakActivePercent / 100)));
 
   if (!hasModels) {
     return (
@@ -84,13 +196,13 @@ export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw }: 
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 min-w-0">
       <div>
         <h2 className="text-lg font-semibold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
           Fleet Requirements
         </h2>
         <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
-          {fleet.modelResults.length} model{fleet.modelResults.length !== 1 ? 's' : ''} · {rackPowerBudgetKw} kW/rack · {nodePowerKw} kW/node
+          {fleet.modelResults.length} model{fleet.modelResults.length !== 1 ? 's' : ''} · {totalDevelopers} total devs · {peakActivePercent}% peak active ({peakActiveUsers}) · {(1 + safetyBufferPercent / 100).toFixed(2)}x safety buffer · {rackPowerBudgetKw} kW/rack · {nodePowerKw} kW/node
         </p>
       </div>
 
@@ -104,12 +216,49 @@ export default function ResultsPanel({ fleet, rackPowerBudgetKw, nodePowerKw }: 
 
       {/* Per-Model Breakdown */}
       <div className="glass-card p-5 animate-fade-in-up stagger-5" style={{ opacity: 0 }}>
-        <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-          Per-Model Breakdown
-        </h3>
-        {fleet.modelResults.map((r) => (
-          <ModelBreakdownRow key={r.entryId} r={r} />
-        ))}
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+            Per-Model Breakdown
+          </h3>
+          <button
+            onClick={() => setShowTable((v) => !v)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
+            style={{
+              background: showTable
+                ? 'linear-gradient(135deg, oklch(0.78 0.15 195 / 0.2), oklch(0.65 0.2 290 / 0.2))'
+                : 'oklch(1 0 0 / 0.04)',
+              color: showTable ? 'var(--color-accent-cyan)' : 'var(--color-text-tertiary)',
+              border: showTable
+                ? '1px solid oklch(0.78 0.15 195 / 0.3)'
+                : '1px solid oklch(1 0 0 / 0.06)',
+            }}
+          >
+            {showTable ? (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                </svg>
+                Summary View
+              </>
+            ) : (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/>
+                </svg>
+                Table View
+              </>
+            )}
+          </button>
+        </div>
+
+        {showTable ? (
+          <CalculationTable results={fleet.modelResults} />
+        ) : (
+          fleet.modelResults.map((r) => (
+            <ModelBreakdownRow key={r.entryId} r={r} />
+          ))
+        )}
       </div>
     </div>
   );
